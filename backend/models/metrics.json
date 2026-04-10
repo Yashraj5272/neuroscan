@@ -1,0 +1,10 @@
+{
+  "rf_accuracy": 1.0,
+  "rf_auc": 1.0,
+  "rf_cv_mean": 1.0,
+  "rf_cv_std": 0.0,
+  "svm_accuracy": 1.0,
+  "svm_auc": 1.0,
+  "svm_cv_mean": 1.0,
+  "svm_cv_std": 0.0
+}

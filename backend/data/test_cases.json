@@ -1,0 +1,94 @@
+{
+  "test_cases": [
+    {
+      "label": "Parkinson's Patient — High Risk",
+      "description": "Classic PD presentation: slow irregular tapping, 5Hz tremor, masked face, many symptoms",
+      "features": {
+        "tap_speed": 1.8,
+        "tap_consistency": 0.38,
+        "tap_interval_std": 210.5,
+        "tap_interval_cv": 0.44,
+        "tremor_frequency": 6.2,
+        "tremor_amplitude": 0.81,
+        "movement_stability": 0.28,
+        "gyro_variance": 0.75,
+        "eye_blink_rate": 8.2,
+        "expression_mobility": 0.29,
+        "questionnaire_score": 17.5
+      },
+      "expected": "Parkinson's Detected",
+      "expected_risk": "High"
+    },
+    {
+      "label": "Parkinson's Patient — Moderate Risk",
+      "description": "Early/mild PD: slightly reduced speed, mild tremor, some symptoms",
+      "features": {
+        "tap_speed": 3.1,
+        "tap_consistency": 0.55,
+        "tap_interval_std": 130.0,
+        "tap_interval_cv": 0.27,
+        "tremor_frequency": 4.1,
+        "tremor_amplitude": 0.52,
+        "movement_stability": 0.51,
+        "gyro_variance": 0.48,
+        "eye_blink_rate": 11.5,
+        "expression_mobility": 0.52,
+        "questionnaire_score": 10.0
+      },
+      "expected": "Parkinson's Detected",
+      "expected_risk": "Moderate"
+    },
+    {
+      "label": "Healthy — Young Adult",
+      "description": "Fast consistent tapping, no tremor, normal blink rate, no symptoms",
+      "features": {
+        "tap_speed": 5.4,
+        "tap_consistency": 0.88,
+        "tap_interval_std": 42.0,
+        "tap_interval_cv": 0.08,
+        "tremor_frequency": 0.6,
+        "tremor_amplitude": 0.07,
+        "movement_stability": 0.93,
+        "gyro_variance": 0.05,
+        "eye_blink_rate": 18.5,
+        "expression_mobility": 0.86,
+        "questionnaire_score": 0.5
+      },
+      "expected": "Healthy",
+      "expected_risk": "Low"
+    },
+    {
+      "label": "Healthy — Older Adult",
+      "description": "Slightly slower tapping normal for age, minimal tremor, good stability",
+      "features": {
+        "tap_speed": 4.1,
+        "tap_consistency": 0.78,
+        "tap_interval_std": 68.0,
+        "tap_interval_cv": 0.14,
+        "tremor_frequency": 1.5,
+        "tremor_amplitude": 0.18,
+        "movement_stability": 0.79,
+        "gyro_variance": 0.13,
+        "eye_blink_rate": 15.0,
+        "expression_mobility": 0.74,
+        "questionnaire_score": 2.5
+      },
+      "expected": "Healthy",
+      "expected_risk": "Low"
+    }
+  ],
+  "curl_example": "curl -X POST http://localhost:5000/predict -H 'Content-Type: application/json' -d @test_pd_high.json",
+  "feature_reference": {
+    "tap_speed":           "Taps per second (healthy: 3.5–6.0, PD: 1.5–3.0)",
+    "tap_consistency":     "0–1, higher is better (healthy: >0.70, PD: <0.55)",
+    "tap_interval_std":    "ms, lower is better (healthy: 20–80ms, PD: 120–250ms)",
+    "tap_interval_cv":     "Coeff. of variation, lower is better (healthy: <0.18, PD: >0.30)",
+    "tremor_frequency":    "Hz — Parkinson tremor is 4–8 Hz (healthy: <2.5Hz)",
+    "tremor_amplitude":    "0–1, lower is better (healthy: <0.25, PD: >0.50)",
+    "movement_stability":  "0–1, higher is better (healthy: >0.75, PD: <0.55)",
+    "gyro_variance":       "0–1, lower is better (healthy: <0.20, PD: >0.45)",
+    "eye_blink_rate":      "blinks/min (healthy: 12–24, PD: 5–12)",
+    "expression_mobility": "0–1, higher is better (healthy: >0.65, PD: <0.50)",
+    "questionnaire_score": "0–20 symptom score (healthy: 0–5, PD: 10–20)"
+  }
+}
