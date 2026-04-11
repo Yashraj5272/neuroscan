@@ -1,4 +1,4 @@
-Set-Content -Path "vercel.json" -Value '{
+{
   "version": 2,
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
@@ -30,4 +30,4 @@ Set-Content -Path "vercel.json" -Value '{
       ]
     }
   ]
-}'
+}
