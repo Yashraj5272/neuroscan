@@ -2,11 +2,10 @@
 Parkinson's Detection API — Flask Backend
 ==========================================
 Endpoints:
-  GET  /            → home route
-  POST /predict     → run prediction from feature JSON
-  GET  /train       → re-train models from scratch
-  GET  /metrics     → return stored model metrics
-  GET  /health      → health-check
+  POST /predict  → run prediction from feature JSON
+  GET  /train    → re-train models from scratch
+  GET  /metrics  → return stored model metrics
+  GET  /health   → health-check
 """
 
 import os, json, time, logging
@@ -21,6 +20,8 @@ logging.basicConfig(level=logging.INFO,
 log = logging.getLogger("parkinsons_api")
 
 app = Flask(__name__)
+
+# Allow all origins in production (Render frontend URL + localhost dev)
 CORS(app, origins="*")
 
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
@@ -30,14 +31,6 @@ HISTORY_FILE = os.path.join(DATA_DIR, "prediction_history.json")
 
 os.makedirs(MODELS_DIR, exist_ok=True)
 os.makedirs(DATA_DIR,   exist_ok=True)
-
-# ── HOME ROUTE (NEW) ───────────────────────────────────────────────────────────
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify({
-        "message": "NeuroScan API is running 🚀",
-        "endpoints": ["/predict", "/train", "/metrics", "/health"]
-    })
 
 # ── Load models ────────────────────────────────────────────────────────────────
 def load_models():
@@ -53,23 +46,36 @@ except FileNotFoundError:
     log.warning("Models not found. Run /train first.")
     RF_MODEL = SVM_MODEL = SCALER = None
 
-# ── Features ───────────────────────────────────────────────────────────────────
+# ── Feature names (must match training order) ──────────────────────────────────
 FEATURE_NAMES = [
-    "tap_speed","tap_consistency","tap_interval_std","tap_interval_cv",
-    "tremor_frequency","tremor_amplitude","movement_stability",
-    "gyro_variance","eye_blink_rate","expression_mobility","questionnaire_score",
+    "tap_speed",
+    "tap_consistency",
+    "tap_interval_std",
+    "tap_interval_cv",
+    "tremor_frequency",
+    "tremor_amplitude",
+    "movement_stability",
+    "gyro_variance",
+    "eye_blink_rate",
+    "expression_mobility",
+    "questionnaire_score",
 ]
 
 HEALTHY_RANGES = {
-    "tap_speed": (3.5, 6.0), "tap_consistency": (0.70, 1.00),
-    "tap_interval_std": (20, 80), "tap_interval_cv": (0.05, 0.18),
-    "tremor_frequency": (0.0, 2.5), "tremor_amplitude": (0.00, 0.25),
-    "movement_stability": (0.75, 1.00), "gyro_variance": (0.00, 0.20),
-    "eye_blink_rate": (12.0, 24.0), "expression_mobility": (0.65, 1.00),
-    "questionnaire_score": (0.0, 5.0),
+    "tap_speed":           (3.5, 6.0),
+    "tap_consistency":     (0.70, 1.00),
+    "tap_interval_std":    (20,  80),
+    "tap_interval_cv":     (0.05, 0.18),
+    "tremor_frequency":    (0.0, 2.5),
+    "tremor_amplitude":    (0.00, 0.25),
+    "movement_stability":  (0.75, 1.00),
+    "gyro_variance":       (0.00, 0.20),
+    "eye_blink_rate":      (12.0, 24.0),
+    "expression_mobility": (0.65, 1.00),
+    "questionnaire_score": (0.0,  5.0),
 }
 
-def compute_individual_scores(features):
+def compute_individual_scores(features: dict) -> dict:
     scores = {}
     for name in FEATURE_NAMES:
         val = features.get(name)
@@ -77,22 +83,23 @@ def compute_individual_scores(features):
             scores[name] = 50
             continue
         lo, hi = HEALTHY_RANGES[name]
-        if name in ("tap_interval_std","tap_interval_cv","tremor_frequency",
-                    "tremor_amplitude","gyro_variance","questionnaire_score"):
+        if name in ("tap_interval_std", "tap_interval_cv",
+                    "tremor_frequency", "tremor_amplitude",
+                    "gyro_variance", "questionnaire_score"):
             norm = (val - lo) / max(hi - lo, 1e-9)
         else:
             norm = (hi - val) / max(hi - lo, 1e-9)
         scores[name] = max(0, min(100, round(norm * 100, 1)))
     return scores
 
-def save_to_history(record):
+def save_to_history(record: dict):
     history = []
     if os.path.exists(HISTORY_FILE):
         try:
             with open(HISTORY_FILE) as f:
                 history = json.load(f)
-        except:
-            pass
+        except Exception:
+            history = []
     history.append(record)
     history = history[-100:]
     with open(HISTORY_FILE, "w") as f:
@@ -103,9 +110,9 @@ def save_to_history(record):
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
-        "status": "ok",
+        "status":        "ok",
         "models_loaded": RF_MODEL is not None,
-        "timestamp": time.time()
+        "timestamp":     time.time()
     })
 
 @app.route("/predict", methods=["POST"])
@@ -113,57 +120,140 @@ def predict():
     global RF_MODEL, SVM_MODEL, SCALER
 
     if RF_MODEL is None:
-        return jsonify({"error": "Models not trained"}), 503
+        return jsonify({"error": "Models not trained. Call GET /train first."}), 503
 
     try:
         body = request.get_json(force=True)
+        if not body:
+            return jsonify({"error": "Empty request body."}), 400
+
         features = body.get("features", body)
 
-        vec = [float(features.get(name, 0)) for name in FEATURE_NAMES]
+        vec, missing = [], []
+        for name in FEATURE_NAMES:
+            val = features.get(name)
+            if val is None:
+                missing.append(name)
+                vec.append(0.0)
+            else:
+                vec.append(float(val))
 
-        X = np.array(vec).reshape(1, -1)
+        X        = np.array(vec).reshape(1, -1)
         X_scaled = SCALER.transform(X)
 
-        rf_proba = RF_MODEL.predict_proba(X_scaled)[0]
+        rf_pred   = int(RF_MODEL.predict(X_scaled)[0])
+        rf_proba  = RF_MODEL.predict_proba(X_scaled)[0]
+        svm_pred  = int(SVM_MODEL.predict(X_scaled)[0])
         svm_proba = SVM_MODEL.predict_proba(X_scaled)[0]
 
-        prob = (rf_proba[1] + svm_proba[1]) / 2
-        pred = int(prob >= 0.5)
+        ensemble_prob_pk = float((rf_proba[1] + svm_proba[1]) / 2)
+        ensemble_pred    = int(ensemble_prob_pk >= 0.5)
+        confidence       = round(
+            ensemble_prob_pk * 100 if ensemble_pred else (1 - ensemble_prob_pk) * 100, 2
+        )
+        label = "Parkinson's Detected" if ensemble_pred else "Healthy"
+        risk  = ("High" if ensemble_prob_pk > 0.7 else
+                 "Moderate" if ensemble_prob_pk > 0.4 else "Low")
 
-        label = "Parkinson's Detected" if pred else "Healthy"
-        confidence = round(prob * 100 if pred else (1 - prob) * 100, 2)
+        individual_scores  = compute_individual_scores(features)
+        overall_risk_score = round(
+            sum(individual_scores.values()) / len(individual_scores), 1
+        )
 
         result = {
-            "label": label,
-            "confidence": confidence,
-            "risk_level": "High" if prob > 0.7 else "Moderate" if prob > 0.4 else "Low",
-            "individual_scores": compute_individual_scores(features),
-            "timestamp": time.time()
+            "prediction":         ensemble_pred,
+            "label":              label,
+            "confidence":         confidence,
+            "risk_level":         risk,
+            "overall_risk_score": overall_risk_score,
+            "rf_prediction":      rf_pred,
+            "rf_probability":     round(float(rf_proba[1]) * 100, 2),
+            "svm_prediction":     svm_pred,
+            "svm_probability":    round(float(svm_proba[1]) * 100, 2),
+            "individual_scores":  individual_scores,
+            "missing_features":   missing,
+            "timestamp":          time.time(),
+            "disclaimer": (
+                "This result is for screening purposes only and "
+                "is NOT a medical diagnosis. Consult a neurologist."
+            )
         }
 
-        save_to_history(result)
+        try:
+            save_to_history({"timestamp": time.time(), "features": features, "result": result})
+        except Exception:
+            pass
+
+        log.info(f"Prediction: {label}  confidence={confidence}%  risk={risk}")
         return jsonify(result)
 
     except Exception as e:
+        log.exception("Prediction error")
         return jsonify({"error": str(e)}), 500
 
-@app.route("/train", methods=["GET"])
+@app.route("/train", methods=["GET", "POST"])
 def train():
-    import subprocess, sys
-    script = os.path.join(BASE_DIR, "scripts", "train_model.py")
-    subprocess.run([sys.executable, script])
-    global RF_MODEL, SVM_MODEL, SCALER
-    RF_MODEL, SVM_MODEL, SCALER = load_models()
-    return jsonify({"status": "retrained"})
+    try:
+        import subprocess, sys
+        script = os.path.join(BASE_DIR, "scripts", "train_model.py")
+        result = subprocess.run(
+            [sys.executable, script],
+            capture_output=True, text=True, timeout=300
+        )
+        if result.returncode != 0:
+            return jsonify({"error": result.stderr}), 500
+        global RF_MODEL, SVM_MODEL, SCALER
+        RF_MODEL, SVM_MODEL, SCALER = load_models()
+        return jsonify({
+            "status":  "ok",
+            "message": "Models retrained and reloaded.",
+            "output":  result.stdout[-2000:]
+        })
+    except Exception as e:
+        log.exception("Training error")
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/metrics", methods=["GET"])
 def metrics():
-    path = os.path.join(MODELS_DIR, "metrics.json")
-    if not os.path.exists(path):
-        return jsonify({"error": "No metrics"}), 404
-    return jsonify(json.load(open(path)))
+    metrics_file = os.path.join(MODELS_DIR, "metrics.json")
+    if not os.path.exists(metrics_file):
+        return jsonify({"error": "metrics.json not found. Run /train first."}), 404
+    with open(metrics_file) as f:
+        return jsonify(json.load(f))
 
-# ── Run ────────────────────────────────────────────────────────────────────────
+@app.route("/history", methods=["GET"])
+def history():
+    n = min(int(request.args.get("n", 20)), 100)
+    if not os.path.exists(HISTORY_FILE):
+        return jsonify([])
+    with open(HISTORY_FILE) as f:
+        data = json.load(f)
+    return jsonify(data[-n:])
+
+@app.route("/sample-features", methods=["GET"])
+def sample_features():
+    parkinsons_sample = {
+        "tap_speed": 2.1, "tap_consistency": 0.42, "tap_interval_std": 185,
+        "tap_interval_cv": 0.39, "tremor_frequency": 5.8, "tremor_amplitude": 0.74,
+        "movement_stability": 0.32, "gyro_variance": 0.68, "eye_blink_rate": 9.5,
+        "expression_mobility": 0.35, "questionnaire_score": 15
+    }
+    healthy_sample = {
+        "tap_speed": 4.9, "tap_consistency": 0.85, "tap_interval_std": 52,
+        "tap_interval_cv": 0.10, "tremor_frequency": 0.8, "tremor_amplitude": 0.10,
+        "movement_stability": 0.91, "gyro_variance": 0.07, "eye_blink_rate": 17,
+        "expression_mobility": 0.82, "questionnaire_score": 1
+    }
+    return jsonify({
+        "parkinsons_example": parkinsons_sample,
+        "healthy_example":    healthy_sample,
+        "feature_descriptions": {
+            name: f"Range: {HEALTHY_RANGES[name]}" for name in FEATURE_NAMES
+        }
+    })
+
+# ── Entry ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    debug = os.environ.get("FLASK_ENV", "production") != "production"
+    app.run(host="0.0.0.0", port=port, debug=debug)
