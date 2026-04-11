@@ -52,3 +52,20 @@ export async function healthCheck() {
     return { status: 'error', models_loaded: false }
   }
 }
+const API_URL = "https://neuroscan-6kho.onrender.com/predict";
+
+export async function predict(data) {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ features: data }),
+  });
+
+  if (!res.ok) {
+    throw new Error("API request failed");
+  }
+
+  return await res.json();
+}
