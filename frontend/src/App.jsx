@@ -6,14 +6,18 @@ import TestPage from './pages/TestPage.jsx'
 import ResultPage from './pages/ResultPage.jsx'
 import HistoryPage from './pages/HistoryPage.jsx'
 
+// 🌐 Backend API Base URL
+export const API_BASE_URL = "https://neuroscan-6kho.onrender.com";
+
 export default function App() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-deep)' }}>
       <Navbar />
+
       <Routes>
-        <Route path="/"        element={<HomePage   />} />
-        <Route path="/test"    element={<TestPage   />} />
-        <Route path="/result"  element={<ResultPage />} />
+        <Route path="/" element={<HomePage />} />
+        <Route path="/test" element={<TestPage />} />
+        <Route path="/result" element={<ResultPage />} />
         <Route path="/history" element={<HistoryPage />} />
       </Routes>
     </div>
